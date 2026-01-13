@@ -36,3 +36,15 @@ yarn-error.log*
 # Misc
 .DS_Store
 *.pem
+
+assets
+
+# Ignore all virtual environments named 'venv' or '.venv'
+venv/
+.venv/
+env/
+
+# Ignore all Python cache directories and files
+__pycache__/
+*.py[cod]
+*$py.class
