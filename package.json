@@ -9,15 +9,24 @@
     "check-types": "turbo run check-types",
     "infra:dev:up": "docker compose --env-file .env.example up -d",
     "infra:dev:down": "docker compose down",
+    "db:dev:push": "turbo run db:push",
+    "db:dev:generate": "turbo run db:generate",
     "dev": "docker compose up -d && turbo dev"
   },
   "devDependencies": {
+    "@types/node": "^22.15.3",
+    "dotenv": "^17.2.3",
+    "dotenv-cli": "^11.0.0",
     "prettier": "^3.7.4",
+    "prisma": "^7.2.0",
     "turbo": "^2.7.4",
     "typescript": "5.9.2"
   },
   "packageManager": "pnpm@9.0.0",
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "@prisma/client": "^7.2.0"
   }
 }

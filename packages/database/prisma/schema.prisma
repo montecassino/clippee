@@ -1,0 +1,30 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+enum ClipStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+  RENDERING
+  FAILED
+  RENDERED
+}
+
+model Clip {
+  id         String @id @default(uuid(7))
+  videoPath  String
+  faceCamX   Float
+  faceCamY Float
+  faceCamWidth Float
+  faceCamHeight Float
+  clipStartTimestamp Float 
+  clipEndTimestamp Float 
+  status String 
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now())
+}
