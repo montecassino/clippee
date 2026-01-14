@@ -1,17 +1,36 @@
-import cv2
+
+from pathlib import Path
 import os
+from dotenv import load_dotenv
+
+stage = os.getenv("STAGE", "example") 
+env_file = f".env.{stage}"
+
+env_path = Path(__file__).resolve().parent.parent.parent / env_file
+
+load_dotenv(dotenv_path=env_path)
+
+import cv2
 import uuid6
+from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, HTTPException, status
 from sqlalchemy.orm import Session
 from ultralytics import YOLO
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+from rmq import connect_rabbitmq, close_rabbitmq, publish_clip_event
 
 # internal imports here
 from database import get_db
 import models
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await connect_rabbitmq()
+    yield
+    await close_rabbitmq()
+
+app = FastAPI(lifespan=lifespan)
 
 model = YOLO("yolo11n.pt") 
 
@@ -91,8 +110,8 @@ async def detect_facecam(req: DetectionRequest,db: AsyncSession = Depends(get_db
         await db.commit() 
         await db.refresh(new_clip)
 
-        # 3. TODO: Send to RabbitMQ here (use new_clip.id)
-        # await send_to_rabbitmq(new_clip.id)
+        # rmq
+        await publish_clip_event(clip_id)
 
         return {
             "success": True,

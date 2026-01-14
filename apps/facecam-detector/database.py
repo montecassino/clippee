@@ -1,21 +1,12 @@
 import os
-from pathlib import Path
 from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-
-stage = os.getenv("STAGE", "example") 
-env_file = f".env.{stage}"
-
-env_path = Path(__file__).resolve().parent.parent.parent / env_file
-
-load_dotenv(dotenv_path=env_path)
 
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL_PYTHON")
 
 if not SQLALCHEMY_DATABASE_URL:
-    print(f"Error: DATABASE_URL not found at {env_path}")
+    print(f"Error: DATABASE_URL not found")
 else:
     print(f"Connected to: {SQLALCHEMY_DATABASE_URL}")
 
