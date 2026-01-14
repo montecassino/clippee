@@ -5,7 +5,7 @@ import * as dotenv from "dotenv";
 import path from "path";
 import { defineConfig, env } from "prisma/config";
 
-const stage = process.env.NODE_ENV || "example";
+const stage = process.env.NODE_ENV || "dev";
 
 dotenv.config({ path: path.resolve(__dirname, `../../.env.${stage}`) });
 

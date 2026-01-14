@@ -6,3 +6,9 @@ ultralytics
 fastapi
 uvicorn
 opencv-python-headless
+sqlalchemy
+aiomysql
+cryptography
+aio-pika
+uuid6
+python-dotenv

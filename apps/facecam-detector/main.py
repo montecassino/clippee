@@ -1,13 +1,18 @@
 import cv2
 import os
+import uuid6
+from fastapi import Depends, FastAPI, HTTPException, status
+from sqlalchemy.orm import Session
 from ultralytics import YOLO
-from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import List, Optional
+from sqlalchemy.ext.asyncio import AsyncSession
+
+# internal imports here
+from database import get_db
+import models
 
 app = FastAPI()
 
-# load yolo nano
 model = YOLO("yolo11n.pt") 
 
 class DetectionRequest(BaseModel):
@@ -15,84 +20,90 @@ class DetectionRequest(BaseModel):
     start_sec: float
     end_sec: float
 
-# in production this should be a background worker working asynchronously 
-# but fuck it
-@app.post("/detect-facecam")
-async def detect_facecam(req: DetectionRequest):
-    video_capture = cv2.VideoCapture(req.video_path)
-    if not video_capture.isOpened():
-        raise HTTPException(status_code=400, detail="Could not open video file")
+def extract_facecam_coords(video_path: str, start: float, end: float):
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        return None, "Could not open video file"
 
-    fps = video_capture.get(cv2.CAP_PROP_FPS)
-
-    # point playhead to start timestamp
-    video_capture.set(cv2.CAP_PROP_POS_FRAMES, int(req.start_sec * fps))
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    cap.set(cv2.CAP_PROP_POS_FRAMES, int(start * fps))
     
     detections = []
     
-    while video_capture.isOpened() and (video_capture.get(cv2.CAP_PROP_POS_MSEC) / 1000.0) <= req.end_sec:
-        # move playhead to next frame until we exit
-        ret, frame = video_capture.read()
+    while cap.isOpened():
+        current_sec = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
+        if current_sec > end:
+            break
+            
+        ret, frame = cap.read()
         if not ret:
             break
             
-        current_frame_num = int(video_capture.get(cv2.CAP_PROP_POS_FRAMES))
-        if current_frame_num % int(fps) == 0:
-            # yolov11 inference limit person classification using classes=[0]
+        current_frame_num = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
+        # infer once per second to save CPU
+        if current_frame_num % max(1, int(fps)) == 0:
             results = model(frame, classes=[0], verbose=False)
             
             for r in results:
-                boxes = r.boxes.xywh.cpu().numpy() # Get [x_center, y_center, w, h]
-                if len(boxes) > 0:
-                    box = results[0].boxes.xywh[0].cpu().numpy()
-                    x_center, y_center, w, h = box
+                if len(r.boxes) > 0:
+                    box = r.boxes.xywh[0].cpu().numpy()
+                    x_c, y_c, w, h = box
 
-                    # EXPAND: Increase the width and height by 40%
-                    # This captures the microphone, chair, and frame
-                    w_expanded = w * 1.4
-                    h_expanded = h * 1.4
+                    # 40 percent expansion logic
+                    detections.append({
+                        "x": float(x_c - (w * 1.4 / 2)),
+                        "y": float(y_c - (h * 1.4 / 2)),
+                        "w": float(w * 1.4),
+                        "h": float(h * 1.4)
+                    })
 
-                    # Convert back to top-left coordinates for cropping
-                    x = int(x_center - (w_expanded / 2))
-                    y = int(y_center - (h_expanded / 2))
-                    w = int(w_expanded)
-                    h = int(h_expanded)
-                    detections.append((x, y, int(w), int(h)))
-
+    cap.release()
+    
     if not detections:
-        return {"detected": False, "message": "No streamer detected in this timeframe"}
+        return None, "No streamer detected"
 
-    # median frame
-    detections.sort(key=lambda d: d[0]) 
-    mid = len(detections) // 2
-    final_box = detections[mid]
+    detections.sort(key=lambda d: d['x'])
+    return detections[len(detections) // 2], None
 
-    # just checking if face detected
-    # if final_box:
-    #     x, y, w, h = final_box
+@app.post("/detect-facecam", status_code=status.HTTP_201_CREATED)
+async def detect_facecam(req: DetectionRequest,db: AsyncSession = Depends(get_db)):
+    final_box, error = extract_facecam_coords(req.video_path, req.start_sec, req.end_sec)
+    
+    if error:
+        raise HTTPException(status_code=400, detail=error)
+
+    try:
+        clip_id = str(uuid6.uuid7())
+
+        new_clip = models.Clip(
+            id=clip_id,
+            videoPath=req.video_path,
+            faceCamX=final_box["x"],
+            faceCamY=final_box["y"],
+            faceCamWidth=final_box["w"],
+            faceCamHeight=final_box["h"],
+            clipStartTimestamp=req.start_sec,
+            clipEndTimestamp=req.end_sec,
+            status="DRAFT"
+        )
         
-    #     debug_dir = os.path.join(os.path.dirname(__file__), "debug")
-    #     os.makedirs(debug_dir, exist_ok=True)
+        db.add(new_clip)
+        await db.commit() 
+        await db.refresh(new_clip)
 
-    #     video_capture.set(cv2.CAP_PROP_POS_MSEC, (req.start_sec + req.end_sec) / 2 * 1000)
-    #     ret, debug_frame = video_capture.read()
+        # 3. TODO: Send to RabbitMQ here (use new_clip.id)
+        # await send_to_rabbitmq(new_clip.id)
 
-    #     if ret:
-    #         cv2.rectangle(debug_frame, (x, y), (x + w, y + h), (0, 255, 0), 3)
-    #         cv2.putText(debug_frame, "Detected Facecam", (x, y - 10), 
-    #                     cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
-    #         debug_path = os.path.join(debug_dir, "last_detection.jpg")
-    #         cv2.imwrite(debug_path, debug_frame)
-    #         print(f"Debug screenshot saved to: {debug_path}")
-
-    video_capture.release()
-
-    return {
-        "detected": True,
-        "coords": {
-            "x": final_box[0],
-            "y": final_box[1],
-            "width": final_box[2],
-            "height": final_box[3]
+        return {
+            "success": True,
+            "clip_id": new_clip.id,
+            "coords": final_box
         }
-    }
+
+    except Exception as e:
+        await db.rollback()
+        print(f"Database Error: {e}")
+        raise HTTPException(
+            status_code=500, 
+            detail="Failed to save detection to database"
+        )
