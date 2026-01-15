@@ -1,13 +1,10 @@
-
 from pathlib import Path
 import os
 from dotenv import load_dotenv
 
 stage = os.getenv("STAGE", "example") 
 env_file = f".env.{stage}"
-
 env_path = Path(__file__).resolve().parent.parent.parent / env_file
-
 load_dotenv(dotenv_path=env_path)
 
 import cv2
@@ -23,6 +20,9 @@ from rmq import connect_rabbitmq, close_rabbitmq, publish_clip_event
 # internal imports here
 from database import get_db
 import models
+
+# STORAGE_DIR = Path("facecam_crops")
+# STORAGE_DIR.mkdir(exist_ok=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -45,6 +45,9 @@ def extract_facecam_coords(video_path: str, start: float, end: float):
         return None, "Could not open video file"
 
     fps = cap.get(cv2.CAP_PROP_FPS)
+    frame_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    
     cap.set(cv2.CAP_PROP_POS_FRAMES, int(start * fps))
     
     detections = []
@@ -59,7 +62,6 @@ def extract_facecam_coords(video_path: str, start: float, end: float):
             break
             
         current_frame_num = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
-        # infer once per second to save CPU
         if current_frame_num % max(1, int(fps)) == 0:
             results = model(frame, classes=[0], verbose=False)
             
@@ -68,12 +70,22 @@ def extract_facecam_coords(video_path: str, start: float, end: float):
                     box = r.boxes.xywh[0].cpu().numpy()
                     x_c, y_c, w, h = box
 
-                    # 40 percent expansion logic
+                    # 40 percent expansion logic with boundary clamping
+                    # This ensures the crop doesn't try to pull pixels outside the image (which crashes CV2)
+                    x1 = max(0, int(x_c - (w * 1.4 / 2)))
+                    y1 = max(0, int(y_c - (h * 1.4 / 2)))
+                    x2 = min(frame_w, int(x1 + (w * 1.4)))
+                    y2 = min(frame_h, int(y1 + (h * 1.4)))
+
+                    # Extract the actual crop from the frame
+                    crop = frame[y1:y2, x1:x2].copy()
+
                     detections.append({
-                        "x": float(x_c - (w * 1.4 / 2)),
-                        "y": float(y_c - (h * 1.4 / 2)),
-                        "w": float(w * 1.4),
-                        "h": float(h * 1.4)
+                        "x": float(x1),
+                        "y": float(y1),
+                        "w": float(x2 - x1),
+                        "h": float(y2 - y1),
+                        "crop_img": crop 
                     })
 
     cap.release()
@@ -81,11 +93,12 @@ def extract_facecam_coords(video_path: str, start: float, end: float):
     if not detections:
         return None, "No streamer detected"
 
+    # Sort to find the median detection (to avoid outliers)
     detections.sort(key=lambda d: d['x'])
     return detections[len(detections) // 2], None
 
 @app.post("/detect-facecam", status_code=status.HTTP_201_CREATED)
-async def detect_facecam(req: DetectionRequest,db: AsyncSession = Depends(get_db)):
+async def detect_facecam(req: DetectionRequest, db: AsyncSession = Depends(get_db)):
     final_box, error = extract_facecam_coords(req.video_path, req.start_sec, req.end_sec)
     
     if error:
@@ -94,9 +107,14 @@ async def detect_facecam(req: DetectionRequest,db: AsyncSession = Depends(get_db
     try:
         clip_id = str(uuid6.uuid7())
 
+        # image_path = STORAGE_DIR / f"{clip_id}_face.jpg"
+        # cv2.imwrite(str(image_path), final_box["crop_img"])
+
+        cleaned_path = os.path.basename(req.video_path)
+
         new_clip = models.Clip(
             id=clip_id,
-            videoPath=req.video_path,
+            videoPath=cleaned_path,
             faceCamX=final_box["x"],
             faceCamY=final_box["y"],
             faceCamWidth=final_box["w"],
@@ -110,19 +128,18 @@ async def detect_facecam(req: DetectionRequest,db: AsyncSession = Depends(get_db
         await db.commit() 
         await db.refresh(new_clip)
 
-        # rmq
         await publish_clip_event(clip_id)
 
         return {
             "success": True,
             "clip_id": new_clip.id,
-            "coords": final_box
+            "coords": {k: v for k, v in final_box.items() if k != "crop_img"},
         }
 
     except Exception as e:
         await db.rollback()
-        print(f"Database Error: {e}")
+        print(f"Error: {e}")
         raise HTTPException(
             status_code=500, 
-            detail="Failed to save detection to database"
+            detail="Failed to save detection"
         )
