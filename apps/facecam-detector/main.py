@@ -71,21 +71,16 @@ def extract_facecam_coords(video_path: str, start: float, end: float):
                     x_c, y_c, w, h = box
 
                     # 40 percent expansion logic with boundary clamping
-                    # This ensures the crop doesn't try to pull pixels outside the image (which crashes CV2)
                     x1 = max(0, int(x_c - (w * 1.4 / 2)))
                     y1 = max(0, int(y_c - (h * 1.4 / 2)))
                     x2 = min(frame_w, int(x1 + (w * 1.4)))
                     y2 = min(frame_h, int(y1 + (h * 1.4)))
-
-                    # Extract the actual crop from the frame
-                    crop = frame[y1:y2, x1:x2].copy()
 
                     detections.append({
                         "x": float(x1),
                         "y": float(y1),
                         "w": float(x2 - x1),
                         "h": float(y2 - y1),
-                        "crop_img": crop 
                     })
 
     cap.release()
