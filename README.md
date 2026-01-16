@@ -18,7 +18,7 @@ I know Twitch has already rolled out their vertical video stream feature https:/
 - download VODs and put it inside apps/renderer/public
 - npm run infra:dev:up
 
-# Dump
+## Dump
 curl -X POST http://localhost:8000/detect-facecam \
      -H "Content-Type: application/json" \
      -d '{
@@ -26,3 +26,16 @@ curl -X POST http://localhost:8000/detect-facecam \
            "start_sec": 10.5,
            "end_sec": 15.0
          }'
+
+## Local Env Sample
+DATABASE_ROOT_PASSWORD=CLIPPEE_PASS 
+DATABASE_USER=CLIPPEE_USER
+DATABASE_PASSWORD=CLIPPEE_PASS
+DATABASE_HOST=localhost
+DATABASE_PORT=3306
+DATABASE_NAME=clippee_db
+DATABASE_URL=mysql://CLIPPEE_USER:CLIPPEE_PASS@localhost:3306/clippee_db
+DATABASE_URL_PYTHON=mysql+aiomysql://CLIPPEE_USER:CLIPPEE_PASS@localhost:3306/clippee_db
+RABBIT_USER=CLIPPEE_USER
+RABBIT_PASS=CLIPPEE_PASS
+RABBIT_URL=amqp://CLIPPEE_USER:CLIPPEE_PASS@localhost:5672
