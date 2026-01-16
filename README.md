@@ -7,5 +7,11 @@ I know Twitch has already rolled out their vertical video stream feature https:/
 - TurboRepo - To facilitate cross package dependencies like DB. To also have a unified way to box and run multiple apps related to this project. 
 
 - YOLO - Facecam location and dimensions detection.
+- FastAPI - To serve an API handler that does the facecam detection logic.
 - Remotion - To scale and automate video rendering and production.
 - MySQL - To store clip attributes like clip start and clip end.
+
+## Setup
+- pnpm install
+- turbo run install:python
+- change interpreter depending on the app env 

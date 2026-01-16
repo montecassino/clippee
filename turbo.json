@@ -2,6 +2,9 @@
   "$schema": "https://turborepo.dev/schema.json",
   "ui": "tui",
   "tasks": {
+    "install:python": {
+      "cache": false
+    },
     "db:push": {
       "cache": false,
       "inputs": ["prisma/schema.prisma"]
