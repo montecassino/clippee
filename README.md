@@ -16,6 +16,7 @@ I know Twitch has already rolled out their vertical video stream feature https:/
 - turbo run install:python
 - change interpreter depending on the app env 
 - download VODs and put it inside apps/renderer/public
+- npm run infra:dev:up
 
 # Dump
 curl -X POST http://localhost:8000/detect-facecam \
