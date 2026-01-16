@@ -1,0 +1,10 @@
+{
+  "name": "distributor",
+  "version": "1.0.0",
+  "scripts": {
+    "install:python": "python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt"
+  },
+  "dependencies": {
+    "turbo": "latest"
+  }
+}

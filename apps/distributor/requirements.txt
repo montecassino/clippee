@@ -1,0 +1,4 @@
+aio-pika
+pocoui
+airtest
+pydantic-settings
