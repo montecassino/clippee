@@ -15,3 +15,13 @@ I know Twitch has already rolled out their vertical video stream feature https:/
 - pnpm install
 - turbo run install:python
 - change interpreter depending on the app env 
+- download VODs and put it inside apps/renderer/public
+
+# Dump
+curl -X POST http://localhost:8000/detect-facecam \
+     -H "Content-Type: application/json" \
+     -d '{
+           "video_path": "'$(pwd)'/assets/tenz1.mp4",
+           "start_sec": 10.5,
+           "end_sec": 15.0
+         }'
