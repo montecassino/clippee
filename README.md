@@ -1,1 +1,11 @@
-## notes
+
+# Clippee
+
+I know Twitch has already rolled out their vertical video stream feature https://techcrunch.com/2025/07/17/twitch-starts-testing-vertical-video-streams/, but I don't care. This project is about learning how it would work from an EXTERNAL app perspective. Twitch has access to a streamer's peripherals like webcam and display so changing the orientation from a normal / landscape to vertical is a trivial thing to do.
+
+## Tools
+- TurboRepo - To facilitate cross package dependencies like DB. To also have a unified way to box and run multiple apps related to this project. 
+
+- YOLO - Facecam location and dimensions detection.
+- Remotion - To scale and automate video rendering and production.
+- MySQL - To store clip attributes like clip start and clip end.
