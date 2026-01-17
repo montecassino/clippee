@@ -18,8 +18,8 @@
     "typescript": "latest"
   },
   "scripts": {
-    "db:dev:push": "NODE_ENV=dev prisma db push",
+    "db:dev:push": "cross-env NODE_ENV=dev prisma db push",
     "db:studio": "prisma studio",
-    "db:dev:generate": "NODE_ENV=dev prisma generate"
+    "db:dev:generate": "cross-env NODE_ENV=dev prisma generate"
   }
 }

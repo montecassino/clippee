@@ -5,11 +5,11 @@
     "install:python": {
       "cache": false
     },
-    "db:push": {
+    "db:dev:push": {
       "cache": false,
       "inputs": ["prisma/schema.prisma"]
     },
-    "db:generate": {
+    "db:dev:generate": {
       "cache": false,
       "inputs": ["prisma/schema.prisma"]
     },

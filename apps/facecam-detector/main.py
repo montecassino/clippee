@@ -21,8 +21,9 @@ from rmq import connect_rabbitmq, close_rabbitmq, publish_clip_event
 from database import get_db
 import models
 
-# STORAGE_DIR = Path("facecam_crops")
-# STORAGE_DIR.mkdir(exist_ok=True)
+# 1. Re-enable Storage Directory at the top
+STORAGE_DIR = Path("facecam_crops")
+STORAGE_DIR.mkdir(exist_ok=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -39,10 +40,11 @@ class DetectionRequest(BaseModel):
     start_sec: float
     end_sec: float
 
+# 2. Update the helper function to return the frame
 def extract_facecam_coords(video_path: str, start: float, end: float):
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
-        return None, "Could not open video file"
+        return None, None, "Could not open video file"
 
     fps = cap.get(cv2.CAP_PROP_FPS)
     frame_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -70,31 +72,35 @@ def extract_facecam_coords(video_path: str, start: float, end: float):
                     box = r.boxes.xywh[0].cpu().numpy()
                     x_c, y_c, w, h = box
 
-                    # 40 percent expansion logic with boundary clamping
                     x1 = max(0, int(x_c - (w * 1.4 / 2)))
                     y1 = max(0, int(y_c - (h * 1.4 / 2)))
                     x2 = min(frame_w, int(x1 + (w * 1.4)))
                     y2 = min(frame_h, int(y1 + (h * 1.4)))
 
+                    # We store the frame itself for cropping later
                     detections.append({
-                        "x": float(x1),
-                        "y": float(y1),
-                        "w": float(x2 - x1),
-                        "h": float(y2 - y1),
+                        "coords": {
+                            "x": float(x1),
+                            "y": float(y1),
+                            "w": float(x2 - x1),
+                            "h": float(y2 - y1),
+                        },
+                        "full_frame": frame.copy() 
                     })
 
     cap.release()
     
     if not detections:
-        return None, "No streamer detected"
+        return None, None, "No streamer detected"
 
-    # Sort to find the median detection (to avoid outliers)
-    detections.sort(key=lambda d: d['x'])
-    return detections[len(detections) // 2], None
+    selected = detections[0]
+    
+    return selected["coords"], selected["full_frame"], None
 
 @app.post("/detect-facecam", status_code=status.HTTP_201_CREATED)
 async def detect_facecam(req: DetectionRequest, db: AsyncSession = Depends(get_db)):
-    final_box, error = extract_facecam_coords(req.video_path, req.start_sec, req.end_sec)
+    # Receive the frame along with coords
+    final_box, full_frame, error = extract_facecam_coords(req.video_path, req.start_sec, req.end_sec)
     
     if error:
         raise HTTPException(status_code=400, detail=error)
@@ -102,8 +108,14 @@ async def detect_facecam(req: DetectionRequest, db: AsyncSession = Depends(get_d
     try:
         clip_id = str(uuid6.uuid7())
 
-        # image_path = STORAGE_DIR / f"{clip_id}_face.jpg"
-        # cv2.imwrite(str(image_path), final_box["crop_img"])
+        # --- NEW CROP & SAVE LOGIC ---
+        x, y, w, h = int(final_box["x"]), int(final_box["y"]), int(final_box["w"]), int(final_box["h"])
+        crop_img = full_frame[y:y+h, x:x+w]
+        
+        image_filename = f"{clip_id}_face.jpg"
+        image_path = STORAGE_DIR / image_filename
+        cv2.imwrite(str(image_path), crop_img)
+        # -----------------------------
 
         cleaned_path = os.path.basename(req.video_path)
 
@@ -128,13 +140,11 @@ async def detect_facecam(req: DetectionRequest, db: AsyncSession = Depends(get_d
         return {
             "success": True,
             "clip_id": new_clip.id,
-            "coords": {k: v for k, v in final_box.items() if k != "crop_img"},
+            "image_saved_at": str(image_path),
+            "coords": final_box,
         }
 
     except Exception as e:
         await db.rollback()
         print(f"Error: {e}")
-        raise HTTPException(
-            status_code=500, 
-            detail="Failed to save detection"
-        )
+        raise HTTPException(status_code=500, detail="Failed to save detection")

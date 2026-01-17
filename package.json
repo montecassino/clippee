@@ -10,8 +10,8 @@
     "check-types": "turbo run check-types",
     "infra:dev:up": "docker compose --env-file .env.dev up -d",
     "infra:dev:down": "docker compose down",
-    "db:dev:push": "turbo run db:push",
-    "db:dev:generate": "turbo run db:generate",
+    "db:dev:push": "turbo run db:dev:push",
+    "db:dev:generate": "turbo run db:dev:generate",
     "dev": "docker compose up -d && turbo dev"
   },
   "devDependencies": {
