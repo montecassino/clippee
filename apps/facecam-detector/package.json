@@ -2,9 +2,9 @@
   "name": "facecam-detector",
   "version": "1.0.0",
   "scripts": {
-    "dev": "STAGE=dev uvicorn main:app --reload --port 8000",
-    "prod": "STAGE=production uvicorn main:app --host 0.0.0.0 --port 8000",
-    "install:python": "python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt"
+    "dev": "cross-env STAGE=dev uv run --project . uvicorn main:app --reload --port 8000",
+    "prod": "cross-env STAGE=production poetry run uvicorn main:app --host 0.0.0.0 --port 8000",
+    "install:python": "poetry install"
   },
   "dependencies": {
     "turbo": "latest"
