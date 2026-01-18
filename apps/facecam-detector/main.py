@@ -33,7 +33,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-model = YOLO("yolo11n.pt") 
+model = YOLO("model.pt") 
 
 class DetectionRequest(BaseModel):
     video_path: str
